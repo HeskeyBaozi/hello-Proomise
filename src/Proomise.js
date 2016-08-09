@@ -51,6 +51,7 @@ export class Proomise {
             reject(error);
         }
     }
+
     /**
      *
      * @param onFulfilled 应该是一个函数，在promise执行结束后必须被调用
@@ -63,52 +64,64 @@ export class Proomise {
     then(onFulfilled, onRejected) {
 
         onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : (value)=>value;
-        onRejected = typeof onRejected === 'function' ? onRejected : (reason)=>reason;
+        onRejected = typeof onRejected === 'function' ? onRejected : (reason)=> {
+            throw reason
+        };
 
         let promise2 = new Proomise((resolve, reject)=> {
             if (this.ProomiseStatus === Status.RESOLVED) {
-                try {
-                    let returnValue = onFulfilled(this.ProomiseData);
-                    resolveProomise(promise2, returnValue, resolve, reject);
-                } catch (error) {
-                    reject(error);
-                }
+                setTimeout(()=> {
+                    try {
+                        let returnValue = onFulfilled(this.ProomiseData);
+                        resolveProomise(promise2, returnValue, resolve, reject);
+                    } catch (error) {
+                        reject(error);
+                    }
+                }, 0);
+
 
             }
 
             if (this.ProomiseStatus === Status.REJECTED) {
-                try {
-                    let returnValue = onRejected(this.ProomiseData);
-                    resolveProomise(promise2, returnValue, resolve, reject);
-                } catch (error) {
-                    reject(error);
-                }
+                setTimeout(()=> {
+                    try {
+                        let returnValue = onRejected(this.ProomiseData);
+                        resolveProomise(promise2, returnValue, resolve, reject);
+                    } catch (error) {
+                        reject(error);
+                    }
+                }, 0);
 
             }
 
             if (this.ProomiseStatus === Status.PENDING) {
                 this.onResolvedCallback.push((value)=> {
-                    try {
-                        let returnValue = onFulfilled(value);
-                        resolveProomise(promise2, returnValue, resolve, reject);
-                    } catch (error) {
-                        reject(error);
-                    }
+                    setTimeout(()=> {
+                        try {
+                            let returnValue = onFulfilled(value);
+                            resolveProomise(promise2, returnValue, resolve, reject);
+                        } catch (error) {
+                            reject(error);
+                        }
+                    }, 0);
                 });
 
                 this.onRejectedCallback.push((reason)=> {
-                    try {
-                        let returnValue = onRejected(reason);
-                        resolveProomise(promise2, returnValue, resolve, reject);
-                    } catch (error) {
-                        reject(error);
-                    }
+                    setTimeout(()=> {
+                        try {
+                            let returnValue = onRejected(reason);
+                            resolveProomise(promise2, returnValue, resolve, reject);
+                        } catch (error) {
+                            reject(error);
+                        }
+                    }, 0);
                 });
             }
         });
 
         return promise2;
     }
+
     catch(onRejected) {
         return this.then(null, onRejected);
     }
@@ -139,7 +152,7 @@ function resolveProomise(proomise2, returnValue, resolve, reject) {
             returnValue.then(resolve, reject);
     }
 
-    if (typeof returnValue === 'object' || typeof returnValue === 'function') {
+    if ((typeof returnValue === 'object' && returnValue !== null) || typeof returnValue === 'function') {
         let then;
         try {
             then = returnValue.then;
