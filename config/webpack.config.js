@@ -18,7 +18,7 @@ module.exports = {
     module: {
         loaders: [{
             test: /\.js$/,
-            exclude: /node_modules/,
+            exclude: [/node_modules/],
             loader: 'babel',
             query: {
                 presets: ['es2015']
@@ -26,7 +26,7 @@ module.exports = {
         }]
     },
     plugins: [
-        new webpack.optimize.CommonsChunkPlugin('vendor', 'vendor.bundle.js', Infinity),
+        //new webpack.optimize.CommonsChunkPlugin('vendor', 'vendor.bundle.js', Infinity),
         new webpack.HotModuleReplacementPlugin()
     ],
     devServer: {

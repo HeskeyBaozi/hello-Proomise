@@ -1,14 +1,16 @@
 'use strict';
 
-const PENDING = 'pending';
-const RESOLVED = 'resolved';
-const REJECTED = 'rejected';
+const Status = {
+    PENDING: 'pending',
+    RESOLVED: 'resolved',
+    REJECTED: 'rejected'
+};
 
-
-export default class Proomise {
+export class Proomise {
     constructor(executor) {
-        this.ProomiseStatus = PENDING;
+        this.ProomiseStatus = Status.PENDING;
         this.ProomiseData = undefined;
+
 
         this.onResolvedCallback = [];
         this.onRejectedCallback = [];
@@ -19,8 +21,8 @@ export default class Proomise {
          * @param value “解决”状态时得到的参数，来自 resolve(value)
          */
         const resolve = (value) => {
-            if (this.ProomiseStatus === PENDING) {
-                this.ProomiseStatus = RESOLVED; // 状态永久改变
+            if (this.ProomiseStatus === Status.PENDING) {
+                this.ProomiseStatus = Status.RESOLVED; // 状态永久改变
                 this.ProomiseData = value; // 第一次 Proomise resolve(..这里的参数被传到了Proomise1.data中..)
                 for (let callback of this.onResolvedCallback) { // 调用回调
                     callback(value);
@@ -34,8 +36,8 @@ export default class Proomise {
          * @param reason 异步操作失败的原因，来自 reject(reason)
          */
         const reject = (reason) => {
-            if (this.ProomiseStatus === PENDING) {
-                this.ProomiseStatus = REJECTED;
+            if (this.ProomiseStatus === Status.PENDING) {
+                this.ProomiseStatus = Status.REJECTED;
                 this.ProomiseData = reason;
                 for (let callback of this.onRejectedCallback) {
                     callback(reason);
@@ -49,57 +51,125 @@ export default class Proomise {
             reject(error);
         }
     }
+    /**
+     *
+     * @param onFulfilled 应该是一个函数，在promise执行结束后必须被调用
+     * @param onRejected 应该是一个函数，在promise拒绝执行后必须被调用
+     * @return then 方法必须返回一个 promise 对象
+     *         promise2 = promise1.then(onFulfilled, onRejected);
+     *         代码实现在满足所有要求的情况下可以允许 promise2 === promise1
+     *         每个实现都要文档说明其是否允许以及在何种条件下允许 promise2 === promise1
+     */
+    then(onFulfilled, onRejected) {
 
-    then(onResolved, onRejected) {
-        onResolved = typeof onResolved === 'function' ? onResolved : (value) => {
-        };
-        onRejected = typeof onRejected === 'function' ? onRejected : (reason) => {
-        };
-        if (this.ProomiseStatus === RESOLVED) {
-            /**
-             * then 的返回值是一个Proomise（外层）
-             * 这个Proomise（外层）是根据 then上的参数函数来确定的！
-             * 如果这个参数函数返回的是一个Proomise（内层），且这个内层Proomise的状态已经确定
-             * 所以x.then(..这里的参数函数会立即执行..)
-             * 值得注意的是，立即执行的函数（即then里面的参数）是
-             * 外层Proomise的操作成功和失败的标志函数
-             * 也就是说，立即执行的这些函数会改变外层Proomise的状态
-             * 即then返回的Proomise由其参数函数返回的Proomise确定
-             * （其实这里也可以无限递归
-             *   笑）
-             */
-            return new Proomise((resolve, reject)=> {
-                /**
-                 * this.ProomiseData === Proomise1.ProomiseData === @param Proomise.resolve(...)
-                 */
+        onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : (value)=>value;
+        onRejected = typeof onRejected === 'function' ? onRejected : (reason)=>reason;
+
+        let promise2 = new Proomise((resolve, reject)=> {
+            if (this.ProomiseStatus === Status.RESOLVED) {
                 try {
-                    let returnValue = onResolved(this.ProomiseData);
-                    if (returnValue instanceof Proomise) { // 如果then中设定函数返回值依然是个Proomise（立即执行的异步操作）的话
-                        returnValue.then(resolve, reject); // 内层Proomise决定外层Proomise
-                    } else
-                        resolve(returnValue);
+                    let returnValue = onFulfilled(this.ProomiseData);
+                    resolveProomise(promise2, returnValue, resolve, reject);
                 } catch (error) {
                     reject(error);
                 }
 
-            }); // 最终，返回then注册的回调函数的返回值成了then新生成Promise的data
-        }
+            }
 
-        if (this.ProomiseStatus === REJECTED) {
-            return new Proomise((resolve, reject)=> {
+            if (this.ProomiseStatus === Status.REJECTED) {
                 try {
                     let returnValue = onRejected(this.ProomiseData);
-                    if (returnValue instanceof Proomise) {
-                        returnValue.then(resolve, reject);
-                    }
+                    resolveProomise(promise2, returnValue, resolve, reject);
                 } catch (error) {
                     reject(error);
                 }
-            });
-        }
+
+            }
+
+            if (this.ProomiseStatus === Status.PENDING) {
+                this.onResolvedCallback.push((value)=> {
+                    try {
+                        let returnValue = onFulfilled(value);
+                        resolveProomise(promise2, returnValue, resolve, reject);
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+
+                this.onRejectedCallback.push((reason)=> {
+                    try {
+                        let returnValue = onRejected(reason);
+                        resolveProomise(promise2, returnValue, resolve, reject);
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            }
+        });
+
+        return promise2;
+    }
+    catch(onRejected) {
+        return this.then(null, onRejected);
     }
 
-    thenError(onRejected) {
-        return this.then(null, onRejected);
+}
+
+export const deferred = ()=> {
+    let dfd = {};
+    dfd.promise = new Proomise(function (resolve, reject) {
+        dfd.resolve = resolve;
+        dfd.reject = reject;
+    });
+    return dfd;
+};
+
+function resolveProomise(proomise2, returnValue, resolve, reject) {
+
+    if (proomise2 === returnValue)
+        reject(new TypeError());
+
+    // 如果 returnValue 为 Promise ，则使 promise 接受 returnValue 的状态
+    if (returnValue instanceof Proomise) {
+        if (returnValue.ProomiseStatus === Status.PENDING) {
+            returnValue.then((value)=> {
+                resolveProomise(proomise2, value, resolve, reject);
+            }, reject);
+        } else
+            returnValue.then(resolve, reject);
+    }
+
+    if (typeof returnValue === 'object' || typeof returnValue === 'function') {
+        let then;
+        try {
+            then = returnValue.then;
+        } catch (error) {
+            reject(error);
+        }
+
+        if (typeof then === 'function') {
+            let hasBeenCalled = false;
+            try {
+                then.call(returnValue, (y)=> {
+                    if (hasBeenCalled)return;
+                    hasBeenCalled = true;
+                    resolveProomise(proomise2, y, resolve, reject);
+                }, (r)=> {
+                    if (hasBeenCalled)return;
+                    hasBeenCalled = true;
+                    reject(r);
+                });
+            } catch (error) {
+                if (hasBeenCalled) {
+                    // ignore the error
+                } else {
+                    reject(error);
+                }
+            }
+        } else {
+            resolve(returnValue);
+        }
+    } else {
+        resolve(returnValue);
     }
 }
