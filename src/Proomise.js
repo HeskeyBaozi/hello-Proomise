@@ -1,4 +1,5 @@
 'use strict';
+const nextTick = require('process').nextTick;
 
 const Status = {
     PENDING: 'pending',
@@ -22,11 +23,13 @@ export class Proomise {
          */
         const resolve = (value) => {
             if (this.ProomiseStatus === Status.PENDING) {
-                this.ProomiseStatus = Status.RESOLVED; // 状态永久改变
-                this.ProomiseData = value; // 第一次 Proomise resolve(..这里的参数被传到了Proomise1.data中..)
-                for (let callback of this.onResolvedCallback) { // 调用回调
-                    callback(value);
-                }
+                nextTick(()=> {
+                    this.ProomiseStatus = Status.RESOLVED; // 状态永久改变
+                    this.ProomiseData = value; // 第一次 Proomise resolve(..这里的参数被传到了Proomise1.data中..)
+                    for (let callback of this.onResolvedCallback) { // 调用回调
+                        callback(value);
+                    }
+                });
             }
         };
 
@@ -37,11 +40,15 @@ export class Proomise {
          */
         const reject = (reason) => {
             if (this.ProomiseStatus === Status.PENDING) {
-                this.ProomiseStatus = Status.REJECTED;
-                this.ProomiseData = reason;
-                for (let callback of this.onRejectedCallback) {
-                    callback(reason);
-                }
+
+                nextTick(()=> {
+                    this.ProomiseStatus = Status.REJECTED;
+                    this.ProomiseData = reason;
+                    for (let callback of this.onRejectedCallback) {
+                        callback(reason);
+                    }
+                });
+
             }
         };
 
@@ -70,51 +77,51 @@ export class Proomise {
 
         let promise2 = new Proomise((resolve, reject)=> {
             if (this.ProomiseStatus === Status.RESOLVED) {
-                setTimeout(()=> {
+                nextTick(()=> {
                     try {
                         let returnValue = onFulfilled(this.ProomiseData);
                         resolveProomise(promise2, returnValue, resolve, reject);
                     } catch (error) {
                         reject(error);
                     }
-                }, 0);
+                });
 
 
             }
 
             if (this.ProomiseStatus === Status.REJECTED) {
-                setTimeout(()=> {
+                nextTick(()=> {
                     try {
                         let returnValue = onRejected(this.ProomiseData);
                         resolveProomise(promise2, returnValue, resolve, reject);
                     } catch (error) {
                         reject(error);
                     }
-                }, 0);
+                });
 
             }
 
             if (this.ProomiseStatus === Status.PENDING) {
                 this.onResolvedCallback.push((value)=> {
-                    setTimeout(()=> {
+                    nextTick(()=> {
                         try {
                             let returnValue = onFulfilled(value);
                             resolveProomise(promise2, returnValue, resolve, reject);
                         } catch (error) {
                             reject(error);
                         }
-                    }, 0);
+                    });
                 });
 
                 this.onRejectedCallback.push((reason)=> {
-                    setTimeout(()=> {
+                    nextTick(()=> {
                         try {
                             let returnValue = onRejected(reason);
                             resolveProomise(promise2, returnValue, resolve, reject);
                         } catch (error) {
                             reject(error);
                         }
-                    }, 0);
+                    });
                 });
             }
         });
@@ -138,7 +145,7 @@ export const deferred = ()=> {
 };
 
 function resolveProomise(proomise2, returnValue, resolve, reject) {
-
+    let hasBeenCalled = false;
     if (proomise2 === returnValue)
         reject(new TypeError());
 
@@ -148,8 +155,13 @@ function resolveProomise(proomise2, returnValue, resolve, reject) {
             returnValue.then((value)=> {
                 resolveProomise(proomise2, value, resolve, reject);
             }, reject);
-        } else
-            returnValue.then(resolve, reject);
+        } else if (returnValue.ProomiseStatus === Status.RESOLVED) {
+            resolve(returnValue.ProomiseData);
+        } else {
+            reject(returnValue.ProomiseData);
+        }
+        //returnValue.then(resolve, reject);
+        return;
     }
 
     if ((typeof returnValue === 'object' && returnValue !== null) || typeof returnValue === 'function') {
@@ -161,10 +173,12 @@ function resolveProomise(proomise2, returnValue, resolve, reject) {
         }
 
         if (typeof then === 'function') {
-            let hasBeenCalled = false;
+
             try {
                 then.call(returnValue, (y)=> {
-                    if (hasBeenCalled)return;
+                    if (hasBeenCalled) {
+                        return;
+                    }
                     hasBeenCalled = true;
                     resolveProomise(proomise2, y, resolve, reject);
                 }, (r)=> {
