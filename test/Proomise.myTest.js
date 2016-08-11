@@ -1,56 +1,22 @@
 'use strict';
-var adapter = require('./ProomiseForTest.js');
-var dummy = {dummy: 'dummy'};
+var myPromise = require('./ProomiseForTest.js').Proomise;
 
-var resolved = function (value) {
-    return new adapter.Proomise(function (resolve, reject) {
-        resolve(value);
-    });
-};
+function sleep(time) {
+    console.log('--begin Sleep');
+    var start = new Date();
+    while (start.getTime() + time >= new Date().getTime()) {
+    }
+    console.log('--end Sleep');
+}
 
-var rejected = function (reason) {
-    var d = adapter.deferred();
-    d.reject(reason);
-    return d.promise;
-};
 
-var y = resolved({
-    then: function (onFulfilled) {
-        console.log(onFulfilled);
-        setTimeout(function () {
-            onFulfilled(dummy);
-        }, 10000);
-    },
-    y: 'y'
+console.time('promise1');
+var promise1 = new myPromise(function (resolve, reject) {
+    setTimeout(function () {
+        resolve('Resolved!!');
+    }, 200);
+}).then(function (data) {
+    console.log(data);
 });
-
-var k = resolved(resolved(dummy));
-
-var x = {
-    then: function (resolvePromise) {
-        setTimeout(function () {
-            //console.log('resolvePromise = ', resolvePromise);
-            resolvePromise(y);
-        }, 50);
-
-    },
-    x: 'x'
-};
-
-
-var trueResolved = function (value) {
-    return new Promise(function (resolve, reject) {
-        resolve(value);
-    });
-};
-var truepromise2 = trueResolved(dummy).then(function (data) {
-    return x;
-});
-
-var promise2 = resolved(dummy).then(function (data) {
-    return x;
-});
-
-setTimeout(function () {
-    console.log('finnally:', promise2);
-}, 200);
+console.log(promise1);
+console.timeEnd('promise1');

@@ -2,6 +2,10 @@
 
 The `Prommise` is a tiny, simplified complement of the `Promise/A+`
 
+## Analysis
+
+![分析](./Proomise.png)
+
 ## Usage
 
 1. git the registry
